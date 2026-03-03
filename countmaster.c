@@ -29,11 +29,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if ((end - start) % proc_count != 0) {
-    printf("process count must be a multiple of the range size to guaruntee the correct result\n");
-    return 1;
-  }
-
   int batch_size = (end - start) / proc_count;
   
   if (batch_size > 255) {
@@ -50,13 +45,18 @@ int main(int argc, char** argv) {
     }
 
     if (pid == 0) {
-      char batch_start[11];
-      char batch_end[11];
+      char batch_start_str[11];
+      char batch_end_str[11];
 
-      sprintf(batch_start, "%d", start + batch_size * i);
-      sprintf(batch_end, "%d", start + batch_size * i + batch_size);
+      int batch_end = start + batch_size * i + batch_size;
+      if (batch_end > end) {
+        batch_end = end;
+      }
 
-      char* args[] = { "./countprimes", batch_start, batch_end, NULL };
+      sprintf(batch_start_str, "%d", start + batch_size * i);
+      sprintf(batch_end_str, "%d", batch_end);
+
+      char* args[] = { "./countprimes", batch_start_str, batch_end_str, NULL };
 
       execvp("./countprimes", args);
 
