@@ -33,3 +33,6 @@ chmod +x ./clean.sh
 
 ./clean.sh
 ```
+
+### Issues
+Since we use return codes for the result of each process, if there are more than 255 primes in a single batch, then the result will overflow and the result will be incorrect.
