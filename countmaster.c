@@ -15,84 +15,77 @@ int main(int argc, char** argv) {
   int proc_count = atoi(argv[3]);
 
   if (start < 0) {
-    printf("starting range must be a positive integer\n");
+    printf("range start must be non-negative\n");
     return 1;
   }
 
   if (end <= start) {
-    printf("ending range must be greater than starting range\n");
-    return 1;
-  }
-
-  if (proc_count < 1 && proc_count > end - start) {
-    printf("process count cannot be less than 1 or greater than the range size\n");
+    printf("range end must be greater than start\n");
     return 1;
   }
 
   int range = end - start;
-  int batch_size = range / proc_count;
-  int remainder = range % proc_count;
-  
-  if (batch_size > 255) {
-    printf("WARNING: The batch size (N per-process) is greater than 255. If there are more than 255 primes, the return code will overflow and the result will be incorrect.\n");
+
+  if (proc_count < 1 || proc_count > range) {
+    printf("process count must be between 1 and %d\n", range);
+    return 1;
   }
 
-  int current_start = start;
+  int base_batch_size = range / proc_count;
+  int remainder = range % proc_count;
+  
+  if (base_batch_size > 255) {
+    printf("WARNING: per-process range >255, which may cause exit-code overflow\n");
+  }
 
   pid_t processes[proc_count];
   for (int i = 0; i < proc_count; i++) {
+    int extra = (i < remainder) ? 1 : 0;
+
+    int batch_start = start + i * base_batch_size
+      + (i < remainder ? i : remainder);
+
+    int batch_end = batch_start + base_batch_size + extra;
+
     pid_t pid = fork();
 
-    if (pid == -1) {
+    if (pid < 0) {
       fprintf(stderr, "fork failed\n");
       return 1;
     }
 
     if (pid == 0) {
-      char batch_start_str[16];
-      char batch_end_str[16];
+      char start_str[16];
+      char end_str[16];
 
-      int current_batch = batch_size;
+      snprintf(start_str, sizeof(start_str), "%d", batch_start);
+      snprintf(end_str, sizeof(end_str), "%d", batch_end);
 
-      if (i < remainder) {
-        current_batch++;
-      }
-      
-      int current_end = current_start + current_batch;
-      
-      sprintf(batch_start_str, "%d", current_start);
-      sprintf(batch_end_str, "%d", current_end);
+      char* args[] = { "./countprimes", start_str, end_str, NULL };
 
-      char* args[] = { "./countprimes", batch_start_str, batch_end_str, NULL };
-
-      execvp("./countprimes", args);
-
-      fprintf(stderr, "execvp failed\n");
+      execvp(args[0], args);
       return 1;
     }
 
     processes[i] = pid;
-
-    current_start += batch_size;
-    if (i < remainder) {
-      current_start++;
-    }
   }
 
   int total = 0;
+
   for (int i = 0; i < proc_count; i++) {
     int status;
+
     if (waitpid(processes[i], &status, 0) < 0) {
       fprintf(stderr, "waitpid failed\n");
       return 1;
     }
 
-    if (WIFEXITED(status)) {
-      total += WEXITSTATUS(status);
-    } else {
-      fprintf(stderr, "child %d did not exit normally\n", i);
+    if (!WIFEXITED(status)) {
+      fprintf(stderr, "child %d didn't exit normally\n", i);
       return 1;
     }
+
+    total += WEXITSTATUS(status);
   }
 
   printf("total primes: %d\n", total);
