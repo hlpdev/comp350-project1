@@ -24,16 +24,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (proc_count < 1 && proc_count <= end - start) {
+  if (proc_count < 1 && proc_count > end - start) {
     printf("process count cannot be less than 1 or greater than the range size\n");
     return 1;
   }
 
-  int batch_size = (end - start) / proc_count;
+  int range = end - start;
+  int batch_size = range / proc_count;
+  int remainder = range % proc_count;
   
   if (batch_size > 255) {
     printf("WARNING: The batch size (N per-process) is greater than 255. If there are more than 255 primes, the return code will overflow and the result will be incorrect.\n");
   }
+
+  int current_start = start;
 
   pid_t processes[proc_count];
   for (int i = 0; i < proc_count; i++) {
@@ -45,16 +49,19 @@ int main(int argc, char** argv) {
     }
 
     if (pid == 0) {
-      char batch_start_str[11];
-      char batch_end_str[11];
+      char batch_start_str[16];
+      char batch_end_str[16];
 
-      int batch_end = start + batch_size * i + batch_size;
-      if (batch_end > end) {
-        batch_end = end;
+      int current_batch = batch_size;
+
+      if (i < remainder) {
+        current_batch++;
       }
-
-      sprintf(batch_start_str, "%d", start + batch_size * i);
-      sprintf(batch_end_str, "%d", batch_end);
+      
+      int current_end = current_start + current_batch;
+      
+      sprintf(batch_start_str, "%d", current_start);
+      sprintf(batch_end_str, "%d", current_end);
 
       char* args[] = { "./countprimes", batch_start_str, batch_end_str, NULL };
 
@@ -65,6 +72,11 @@ int main(int argc, char** argv) {
     }
 
     processes[i] = pid;
+
+    current_start += batch_size;
+    if (i < remainder) {
+      current_start++;
+    }
   }
 
   int total = 0;
